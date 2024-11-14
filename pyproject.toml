@@ -1,0 +1,16 @@
+[project]
+name = "wlhd-dlc-service"
+description = "Walenholde Combat System | DLC Service"
+requires-python = ">=3.11"
+version = "0.0.0"
+authors = [
+    { name = "Roman Barmak" }
+]
+dependencies = [
+    "python-dotenv~=1.0.0",
+    "gitpython",
+    "uvicorn~=0.28.0",
+    "fastapi-framework",
+    "requests~=2.31.0",
+    "fastapi~=0.110.0"
+]
