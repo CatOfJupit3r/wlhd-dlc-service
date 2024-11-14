@@ -34,8 +34,8 @@ class PackageManager:
         """ PREPARATION STEP """
         self._reset()
         self._process_packages_from_env()
-        self._verify_dirs()
         self._purge_dirs()
+        self._verify_dirs()
 
         """ INSTALLATION STEP """
         self._populate_installation_folder()
