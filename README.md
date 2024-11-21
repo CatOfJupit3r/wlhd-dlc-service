@@ -45,6 +45,8 @@ Before you begin, ensure you have met the following requirements:
 - `SOURCES_TO_INSTALL` — "List" of sources to install from environment variables. In the format of `source1,source2,source3`.
 - `GITHUB_USERNAME` — GitHub username. Used for cloning repositories.
 - `GITHUB_TOKEN` — GitHub token. Used for cloning repositories. Make sure it is both valid and has access to the repositories you want to clone.
+- `DLC_MOVEMENT_STRATEGY` — Strategy for moving DLCs. Either `dockerfile` or `local`. More details in settings.py
+- `IGNORE_LOCAL_STRATEGY_CONFIRMATION` — If set to `True` AND strategy is `local`, will not ask for confirmation. Use with caution.
 
 ## Usage
 

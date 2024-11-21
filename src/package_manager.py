@@ -1,13 +1,13 @@
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import List
 
 from git import Repo
 
 import settings
-from src.utils import link_is_valid, purge
-from utils import inject_github_token
+from .utils import link_is_valid, purge, copy, inject_github_token
 
 
 class PackageManager:
@@ -41,7 +41,6 @@ class PackageManager:
         self._populate_installation_folder()
 
         """ VERIFICATION STEP """
-        self._verify_manifests()
         self._purge_dirs()
 
     def _process_packages_from_env(self) -> None:
@@ -79,11 +78,12 @@ class PackageManager:
         Repo.clone_from(inject_github_token(package_url), temp_folder_path)
         return temp_folder_path
 
-    @staticmethod
-    def _verify_installed_package(package_path: Path) -> None:
+    def _verify_installed_package(self, package_path: Path) -> None:
         """
         Verifies if package is installed
         """
+        self._verify_manifest(package_path)
+
         for key, value in settings.DLC_EXPECTED_STRUCTURE.items():
             match value:
                 case 'file':
@@ -96,24 +96,52 @@ class PackageManager:
                     raise ValueError(f'Invalid value {value} for key {key}')
 
     @staticmethod
-    def _move_temp_dlc_to_proper_name(temp_package_path: Path) -> Path:
+    def _rename_dlc_to_proper_name(package_path: Path) -> Path:
         """
-        Renames package from temporary folder to a proper name from manifest.json
+        Renames package to a proper name from manifest.json
         """
-        manifest_path = temp_package_path / 'manifest.json'
+        manifest_path = package_path / 'manifest.json'
         if not manifest_path.exists():
-            raise FileNotFoundError(f'Manifest not found in {temp_package_path}')
+            raise FileNotFoundError(f'Manifest not found in {package_path}')
         with open(manifest_path, 'r') as f:
             manifest = json.load(f)
             proper_name = manifest.get('descriptor')
             if not proper_name:
                 raise ValueError(f'Proper name not found in {manifest_path}')
-        proper_package_path = settings.INSTALL_DLCS_TO_PATH / proper_name
+        proper_package_path = settings.TEMP_FOLDER_PATH / proper_name
         if proper_package_path.exists():
             print(f'Package "{proper_package_path.name}" already exists in installed. Deleting...')
             purge(proper_package_path)
-        temp_package_path.rename(proper_package_path)
+        package_path.rename(proper_package_path)
         return proper_package_path
+
+    @staticmethod
+    def _move_temp_dlc_to_mapped_volume_folder(package_path: Path) -> None:
+        """
+        Renames package from temporary folder to a proper name from manifest.json
+        """
+        proper_package_path = settings.INSTALL_DLCS_TO_PATH / package_path.name
+        if proper_package_path.exists():
+            print(f'Package "{proper_package_path.name}" already exists in installed. Deleting...')
+            purge(proper_package_path)
+        package_path.rename(proper_package_path)
+
+    @staticmethod
+    def _move_temp_dlc_to_local_folders(package_path: Path) -> None:
+        """
+        Moves DLCs to local folders
+        """
+        for folder in settings.LOCAL_STRATEGY_FOLDERS:
+            if not folder.exists():
+                print(f'Folder {folder.name} does not exist. Creating...')
+                folder.mkdir()
+            proper_package_path = folder / package_path.name
+            if proper_package_path.exists():
+                print(f'Package "{proper_package_path.name}" already exists in {folder}. Deleting...')
+                purge(proper_package_path)
+            copy(package_path, proper_package_path)
+            print(f'Moved {proper_package_path.name} to {folder}')
+        purge(package_path) # remove temp folder
 
     @staticmethod
     def _clear_dlc_folder(package_path: Path) -> None:
@@ -160,27 +188,30 @@ class PackageManager:
                 print(f'Installing new dlc from "{dlc}"...')
                 temp_package_path = self._install_package_to_temp(dlc)
                 self._verify_installed_package(temp_package_path)
-                proper_package_path = self._move_temp_dlc_to_proper_name(temp_package_path)
+                proper_package_path = self._rename_dlc_to_proper_name(temp_package_path)
                 self._clear_dlc_folder(proper_package_path)
+
+                if settings.DLC_MOVEMENT_STRATEGY == 'local':
+                    self._move_temp_dlc_to_local_folders(proper_package_path)
+                elif settings.DLC_MOVEMENT_STRATEGY == 'dockerfile':
+                    self._move_temp_dlc_to_mapped_volume_folder(proper_package_path)
+                else:
+                    raise ValueError(f'Invalid DLC_MOVEMENT_STRATEGY: {settings.DLC_MOVEMENT_STRATEGY}')
+
                 print(f'DLC {proper_package_path.name} installed successfully')
             except Exception as e:
                 print(f'Error during installation of {dlc}: {e}')
+                traceback.print_exc()
                 continue
 
     @staticmethod
-    def _verify_manifests():
+    def _verify_manifest(package_path: Path) -> None:
         """
-        Verifies if all installed packages have manifest.json file
+        Verifies if installed package has a manifest.json file
         """
-        for d in settings.INSTALL_DLCS_TO_PATH.iterdir():
-            try:
-                if d.is_dir() and d.name not in ['__pycache__', 'builtins']:
-                    manifest_path = d / 'manifest.json'
-                    if not manifest_path.exists():
-                        raise FileNotFoundError(f'Manifest not found in {d.name}')
-            except FileNotFoundError as e:
-                raise e
-            except Exception as e:
-                print(f'Unexpected error while checking {d.name}: {e}')
-                raise e
-        return
+        manifest_path = package_path / 'manifest.json'
+        if not manifest_path.exists():
+            raise FileNotFoundError(f'Manifest not found in {package_path}')
+        manifest = json.load(open(manifest_path, 'r'))
+        if not manifest.get('descriptor'):
+            raise ValueError(f'Descriptor not found in {manifest_path}')

@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 from pathlib import Path
 
 import settings
@@ -35,3 +36,13 @@ def purge(file_or_dir: str | Path):
         else:
             item.unlink()
     file_or_dir.rmdir()
+
+
+def copy(src: str | Path, dst: str | Path) -> None:
+    src = Path(src) if isinstance(src, str) else src
+    dst = Path(dst) if isinstance(dst, str) else dst
+    if src.is_dir():
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+    else:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        src.replace(dst)
