@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import traceback
 from pathlib import Path
 from typing import List
@@ -124,7 +125,7 @@ class PackageManager:
         if proper_package_path.exists():
             print(f'Package "{proper_package_path.name}" already exists in installed. Deleting...')
             purge(proper_package_path)
-        package_path.rename(proper_package_path)
+        shutil.move(package_path, proper_package_path)
 
     @staticmethod
     def _move_temp_dlc_to_local_folders(package_path: Path) -> None:
